@@ -39,7 +39,7 @@ A professional booking bot for salons, barbershops, and service businesses — w
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/yourusername/tg-booking-bot.git
+git clone https://github.com/nullbit26/tg-booking-bot.git
 cd tg-booking-bot
 npm install
 ```

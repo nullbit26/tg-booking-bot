@@ -6,6 +6,16 @@ A professional booking bot for salons, barbershops, and service businesses — w
 
 ---
 
+## 🎯 Use Cases
+
+Perfect for:
+- 💈 **Salons & Barbershops** — haircuts, styling, coloring appointments
+- 💅 **Nail Studios** — manicure, pedicure booking
+- 🏋️ **Fitness Centers** — personal training sessions
+- 👨‍⚕️ **Medical Clinics** — doctor appointments
+- 🎓 **Tutors & Coaches** — lesson scheduling
+- 🐕 **Pet Services** — grooming, veterinary visits
+
 ## ✨ Features
 
 ### For Customers
@@ -39,7 +49,7 @@ A professional booking bot for salons, barbershops, and service businesses — w
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/nullbit26/tg-booking-bot.git
+git clone https://github.com/yourusername/tg-booking-bot.git
 cd tg-booking-bot
 npm install
 ```
@@ -88,7 +98,7 @@ tg-booking-bot/
 ├── bot.js          # Bot logic, handlers, Stripe integration
 ├── database.js     # SQLite wrapper, all DB operations
 ├── package.json
-├── .env.example
+├── config.json.example
 ├── .gitignore
 └── README.md
 ```

@@ -45,26 +45,24 @@ npm install
 ```
 
 ### 2. Configure
-Create `.env` file:
-```env
-BOT_TOKEN=your_bot_token
-ADMIN_IDS=your_telegram_id
-STRIPE_SECRET_KEY=sk_test_xxx
-STRIPE_WEBHOOK_SECRET=whsec_xxx
-WEBHOOK_URL=https://your-domain.com/webhook
-PORT=3000
+1. Copy `config.json.example` to `config.json` (just rename the file)
+2. Open `config.json` in Notepad and fill in your values:
+```json
+{
+  "BOT_TOKEN": "your_bot_token_here",
+  "ADMIN_IDS": "your_telegram_id_here",
+  "STRIPE_SECRET_KEY": "sk_test_xxx",
+  "STRIPE_WEBHOOK_SECRET": "whsec_xxx",
+  "WEBHOOK_URL": "https://your-domain.com/webhook",
+  "PORT": 3000
+}
 ```
 
-**Get Stripe test keys:**
-1. Go to [stripe.com](https://stripe.com)
-2. Create account → Developers → API Keys
-3. Use `sk_test_...` for testing
-
-**Set up webhook:**
-1. Stripe Dashboard → Developers → Webhooks
-2. Add endpoint: `https://your-domain.com/webhook`
-3. Select event: `payment_intent.succeeded`
-4. Copy signing secret to `STRIPE_WEBHOOK_SECRET`
+**How to get these values:**
+- **BOT_TOKEN**: Message @BotFather in Telegram, create new bot, copy token
+- **ADMIN_IDS**: Message @userinfobot, copy your ID number
+- **STRIPE_SECRET_KEY**: Go to [stripe.com](https://stripe.com) → Developers → API Keys → Create test key
+- **STRIPE_WEBHOOK_SECRET**: Stripe Dashboard → Developers → Webhooks → Add endpoint → Copy signing secret
 
 ### 3. Run
 ```bash
@@ -116,14 +114,13 @@ tg-booking-bot/
 - **Telegraf v4** — Telegram Bot framework
 - **Stripe** — payment processing
 - **Express** — webhook server
-- **better-sqlite3** — local database
-- **dotenv** — configuration
+- **sql.js** — local SQLite database (pure JavaScript, no compilation needed)
 
 ---
 
 ## 🔒 Security
 - Webhook signature verification
-- Environment variables for secrets
+- API keys in `config.json` (not committed to Git)
 - No sensitive data in code
 - SQLite for local data storage
 
@@ -136,7 +133,7 @@ For portfolio/demo purposes, the bot code demonstrates full Stripe integration i
 1. Install [ngrok](https://ngrok.com): `ngrok http 3000`
 2. Copy HTTPS URL (e.g., `https://abc123.ngrok.io/webhook`)
 3. Add to Stripe Dashboard → Webhooks
-4. Set `WEBHOOK_URL` in `.env`
+4. Set `WEBHOOK_URL` in `config.json`
 
 Without ngrok/server, the booking and payment link generation still works — webhook just won't auto-confirm (you'd confirm manually via database).
 

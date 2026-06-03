@@ -1,13 +1,23 @@
-const Database = require('better-sqlite3');
+const initSqlJs = require('sql.js');
+const fs = require('fs');
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, 'bookings.db');
 let db;
 
-function initDB() {
-  db = new Database(DB_PATH);
+async function initDB() {
+  const SQL = await initSqlJs();
   
-  db.exec(`
+  // Load existing or create new
+  if (fs.existsSync(DB_PATH)) {
+    const filebuffer = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(filebuffer);
+  } else {
+    db = new SQL.Database();
+  }
+  
+  // Create tables
+  db.run(`
     CREATE TABLE IF NOT EXISTS services (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -27,8 +37,7 @@ function initDB() {
       status TEXT DEFAULT 'pending',
       payment_status TEXT DEFAULT 'unpaid',
       payment_intent_id TEXT,
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      FOREIGN KEY (service_id) REFERENCES services(id)
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
     
     CREATE TABLE IF NOT EXISTS users (
@@ -41,78 +50,118 @@ function initDB() {
   `);
   
   // Seed default services if empty
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM services').get();
-  if (count.cnt === 0) {
-    const insert = db.prepare('INSERT INTO services (name, price, duration_min, description) VALUES (?, ?, ?, ?)');
-    insert.run('Haircut', 1500, 60, 'Classic haircut with styling');
-    insert.run('Beard Trim', 800, 30, 'Beard shaping and trim');
-    insert.run('Full Service', 2000, 90, 'Haircut + Beard + Styling');
-    insert.run('Hair Coloring', 3500, 120, 'Professional hair coloring');
+  const res = db.exec('SELECT COUNT(*) as cnt FROM services');
+  const count = res.length ? res[0].values[0][0] : 0;
+  
+  if (count === 0) {
+    const services = [
+      ['Haircut', 1500, 60, 'Classic haircut with styling'],
+      ['Beard Trim', 800, 30, 'Beard shaping and trim'],
+      ['Full Service', 2000, 90, 'Haircut + Beard + Styling'],
+      ['Hair Coloring', 3500, 120, 'Professional hair coloring']
+    ];
+    services.forEach(s => {
+      db.run('INSERT INTO services (name, price, duration_min, description) VALUES (?, ?, ?, ?)', s);
+    });
+  }
+  
+  saveDB();
+  
+  // Helper functions
+  function getOne(sql, params = []) {
+    const res = db.exec(sql, params);
+    if (!res.length || !res[0].values.length) return null;
+    const cols = res[0].columns;
+    const vals = res[0].values[0];
+    const obj = {};
+    cols.forEach((c, i) => obj[c] = vals[i]);
+    return obj;
+  }
+  
+  function getAll(sql, params = []) {
+    const res = db.exec(sql, params);
+    if (!res.length) return [];
+    return res[0].values.map(row => {
+      const obj = {};
+      res[0].columns.forEach((c, i) => obj[c] = row[i]);
+      return obj;
+    });
+  }
+  
+  function saveDB() {
+    const data = db.export();
+    fs.writeFileSync(DB_PATH, Buffer.from(data));
   }
   
   return {
-    getServices: () => db.prepare('SELECT * FROM services').all(),
-    getService: (id) => db.prepare('SELECT * FROM services WHERE id = ?').get(id),
+    getServices: () => getAll('SELECT * FROM services'),
+    getService: (id) => getOne(`SELECT * FROM services WHERE id = ${id}`),
     
     addUser: (user) => {
-      db.prepare(`INSERT OR REPLACE INTO users (user_id, username, first_name) VALUES (?, ?, ?)`)
-        .run(user.user_id, user.username, user.first_name);
+      db.run(`INSERT OR REPLACE INTO users (user_id, username, first_name) VALUES (${user.user_id}, '${user.username || ''}', '${user.first_name || ''}')`);
+      saveDB();
     },
-    getUser: (userId) => db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId),
+    getUser: (userId) => getOne(`SELECT * FROM users WHERE user_id = ${userId}`),
     
     createBooking: (booking) => {
-      const result = db.prepare(`
+      db.run(`
         INSERT INTO bookings (user_id, user_name, user_phone, service_id, booking_date, booking_time, status)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending')
-      `).run(booking.user_id, booking.user_name, booking.user_phone, booking.service_id, booking.booking_date, booking.booking_time);
-      return result.lastInsertRowid;
+        VALUES (${booking.user_id}, '${booking.user_name || ''}', '${booking.user_phone}', ${booking.service_id}, '${booking.booking_date}', '${booking.booking_time}', 'pending')
+      `);
+      saveDB();
+      const res = db.exec('SELECT last_insert_rowid() as id');
+      return res[0].values[0][0];
     },
     
     updatePayment: (bookingId, paymentIntentId) => {
-      db.prepare(`UPDATE bookings SET payment_status = 'paid', payment_intent_id = ? WHERE id = ?`)
-        .run(paymentIntentId, bookingId);
+      db.run(`UPDATE bookings SET payment_status = 'paid', payment_intent_id = '${paymentIntentId}' WHERE id = ${bookingId}`);
+      saveDB();
     },
     
     confirmBooking: (bookingId) => {
-      db.prepare(`UPDATE bookings SET status = 'confirmed' WHERE id = ?`).run(bookingId);
+      db.run(`UPDATE bookings SET status = 'confirmed' WHERE id = ${bookingId}`);
+      saveDB();
     },
     
     getUserBookings: (userId) => {
-      return db.prepare(`
+      return getAll(`
         SELECT b.*, s.name as service_name, s.price 
         FROM bookings b 
         JOIN services s ON b.service_id = s.id 
-        WHERE b.user_id = ? 
+        WHERE b.user_id = ${userId} 
         ORDER BY b.created_at DESC
-      `).all(userId);
+      `);
     },
     
     getAllBookings: () => {
-      return db.prepare(`
+      return getAll(`
         SELECT b.*, s.name as service_name, s.price 
         FROM bookings b 
         JOIN services s ON b.service_id = s.id 
         ORDER BY b.created_at DESC
-      `).all();
+      `);
     },
     
     getAdminStats: () => {
-      const totalBookings = db.prepare('SELECT COUNT(*) as cnt FROM bookings').get();
-      const totalRevenue = db.prepare(`SELECT SUM(s.price) as total FROM bookings b JOIN services s ON b.service_id = s.id WHERE b.payment_status = 'paid'`).get();
-      const pendingCount = db.prepare(`SELECT COUNT(*) as cnt FROM bookings WHERE status = 'pending'`).get();
-      const todayCount = db.prepare(`SELECT COUNT(*) as cnt FROM bookings WHERE booking_date = date('now')`).get();
+      const totalBookings = getOne('SELECT COUNT(*) as cnt FROM bookings');
+      const totalRevenue = getOne(`SELECT SUM(s.price) as total FROM bookings b JOIN services s ON b.service_id = s.id WHERE b.payment_status = 'paid'`);
+      const pendingCount = getOne(`SELECT COUNT(*) as cnt FROM bookings WHERE status = 'pending'`);
+      const todayCount = getOne(`SELECT COUNT(*) as cnt FROM bookings WHERE booking_date = date('now')`);
       
       return {
-        totalBookings: totalBookings.cnt,
-        totalRevenue: totalRevenue.total || 0,
-        pendingCount: pendingCount.cnt,
-        todayCount: todayCount.cnt
+        totalBookings: totalBookings?.cnt || 0,
+        totalRevenue: totalRevenue?.total || 0,
+        pendingCount: pendingCount?.cnt || 0,
+        todayCount: todayCount?.cnt || 0
       };
     },
     
     cancelBooking: (bookingId, userId) => {
-      const result = db.prepare(`UPDATE bookings SET status = 'cancelled' WHERE id = ? AND user_id = ?`).run(bookingId, userId);
-      return result.changes > 0;
+      const existing = getOne(`SELECT * FROM bookings WHERE id = ${bookingId} AND user_id = ${userId}`);
+      if (!existing) return false;
+      db.run(`UPDATE bookings SET status = 'cancelled' WHERE id = ${bookingId}`);
+      saveDB();
+      return true;
     }
   };
 }

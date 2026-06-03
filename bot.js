@@ -1,17 +1,35 @@
-require('dotenv').config();
+const fs = require('fs');
 const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 const Stripe = require('stripe');
 const { initDB } = require('./database');
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-const db = initDB();
+// Load config
+const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
-const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => parseInt(s.trim())).filter(Boolean);
+const bot = new Telegraf(config.BOT_TOKEN);
+const stripe = Stripe(config.STRIPE_SECRET_KEY);
+
+let db;
+const ADMIN_IDS = (config.ADMIN_IDS || '').split(',').map(s => parseInt(s.trim())).filter(Boolean);
 const isAdmin = id => ADMIN_IDS.includes(id);
 
 const pendingBookings = new Map();
+
+async function startBot() {
+  db = await initDB();
+  
+  // Start webhook server
+  const PORT = config.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Webhook server running on port ${PORT}`);
+  });
+  
+  bot.launch();
+  console.log('Booking bot started!');
+}
+
+startBot();
 
 // ─── /start ──────────────────────────────────────────────
 bot.command('start', ctx => {
@@ -311,7 +329,7 @@ app.post('/webhook', async (req, res) => {
   
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(req.body, sig, config.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Webhook error:', err);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -345,14 +363,6 @@ app.post('/webhook', async (req, res) => {
   res.json({ received: true });
 });
 
-// Start servers
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Webhook server running on port ${PORT}`);
-});
-
-bot.launch();
-console.log('Booking bot started!');
-
+// ─── Shutdown ────────────────────────────────────────────
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));

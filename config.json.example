@@ -1,0 +1,8 @@
+{
+  "BOT_TOKEN": "your_bot_token_here",
+  "ADMIN_IDS": "your_telegram_id_here",
+  "STRIPE_SECRET_KEY": "sk_test_xxx",
+  "STRIPE_WEBHOOK_SECRET": "whsec_xxx",
+  "WEBHOOK_URL": "https://your-domain.com/webhook",
+  "PORT": 3000
+}
